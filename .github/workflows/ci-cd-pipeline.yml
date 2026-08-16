@@ -13,64 +13,74 @@ jobs:
     steps:
       # Step 1: Download your code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # Step 2: Ensure bash is available
-      - name: Set up Bash
+      # Step 2: Confirm Bash is available on the Ubuntu runner
+      - name: Check Bash
         run: |
-          apt-get update
-          apt-get install -y bash
+          bash --version
 
-      # Step 3: Initialize state and deployment folders
-      - name: Initialize state and deployments
-        run: |
-          mkdir -p state deployments/staging deployments/production
-          echo "v1" > state/production_version.txt
-          echo "v1" > state/previous_production_version.txt
-          echo "Initialized state files"
-
-      # Step 4: Make scripts executable
+      # Step 3: Make scripts executable
       - name: Make scripts executable
         run: chmod +x scripts/*.sh
 
-      # Step 5: Build v2
+      # Step 4: Initialize state and deployment folders through the local reset script
+      - name: Reset local pipeline state
+        run: ./scripts/reset.sh
+
+      # Step 5: Show initial state
+      - name: Show initial state
+        run: ./scripts/show-state.sh
+
+      # Step 6: Build v2
       - name: Build v2
         run: ./scripts/build.sh v2
 
-      # Step 6: Test v2
+      # Step 7: Test v2
       - name: Test v2
         run: ./scripts/run-tests.sh v2
 
-      # Step 7: Security scan v2
+      # Step 8: Security scan v2
       - name: Security scan v2
         run: ./scripts/security-scan.sh v2
 
-      # Step 8: Deploy to staging
+      # Step 9: Deploy to staging
       - name: Deploy to staging
         run: ./scripts/deploy.sh staging v2
 
-      # Step 9: Check staging health
+      # Step 10: Check staging health
       - name: Check staging health
         run: ./scripts/health-check.sh staging
 
-      # Step 10: Deploy to production
+      # Step 11: Inject production failure for the recovery scenario
+      - name: Inject production failure
+        run: ./scripts/inject-failure.sh production
+
+      # Step 12: Deploy to production
       - name: Deploy to production
         run: ./scripts/deploy.sh production v2
 
-      # Step 11: Inject production failure (simulate)
-      - name: Inject production failure
-        run: touch state/force_production_health_failure
-
-      # Step 12: Check production health (will fail)
+      # Step 13: Check production health; this should fail because failure was injected
       - name: Check production health
+        id: production_health
         run: ./scripts/health-check.sh production
-        continue-on-error: true # Don't stop workflow even if this fails
+        continue-on-error: true
 
-      # Step 13: Rollback production
+      # Step 14: Confirm the production health failure was reproduced
+      - name: Confirm injected failure
+        run: |
+          if [ "${{ steps.production_health.outcome }}" = "failure" ]; then
+            echo "Expected production health failure occurred"
+          else
+            echo "Expected production health failure did not occur"
+            exit 1
+          fi
+
+      # Step 15: Rollback production
       - name: Rollback production
         run: ./scripts/rollback.sh production
 
-      # Step 14: Verify recovery
+      # Step 16: Verify recovery
       - name: Verify recovery
         run: |
           PROD_VERSION=$(cat state/production_version.txt)
@@ -82,3 +92,7 @@ jobs:
             echo "RECOVERY FAILED: Production is $PROD_VERSION (expected v1)"
             exit 1
           fi
+
+      # Step 17: Show final state
+      - name: Show final state
+        run: ./scripts/show-state.sh

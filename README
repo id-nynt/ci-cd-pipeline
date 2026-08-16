@@ -33,13 +33,6 @@ Run the full local scenario:
 ./scripts/pipeline.sh
 ```
 
-On Windows PowerShell, if `bash` points to WSL and WSL is unavailable, run with
-Git Bash directly:
-
-```powershell
-& 'C:\Program Files\Git\bin\bash.exe' scripts/pipeline.sh
-```
-
 Expected final result:
 
 - staging has received `v2`;
