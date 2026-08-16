@@ -1,0 +1,123 @@
+# CI/CD Recovery Pipeline Demo
+
+This repository demonstrates a local CI/CD pipeline for an online payment
+service. It starts production on a stable `v1`, validates a new `v2`, deploys it
+through staging, intentionally fails the production health check, and then
+rolls production back to `v1`.
+
+The current implementation is Phase 2 of the demo progression: a repeatable
+local shell-script pipeline with reset and inspection helpers.
+
+## Scenario
+
+Traditional CI/CD flow:
+
+```text
+build -> test -> security -> staging deploy -> staging health
+      -> production deploy -> production health -> rollback on failure
+```
+
+In this repo:
+
+- `v1` is the previous known-good production version.
+- `v2` is the new version being delivered.
+- `v2` passes build, test, security, staging deploy, and staging health.
+- A production health failure is intentionally injected.
+- `rollback.sh production` restores production to `v1`.
+
+## Main command
+
+Run the full local scenario:
+
+```sh
+./scripts/pipeline.sh
+```
+
+On Windows PowerShell, if `bash` points to WSL and WSL is unavailable, run with
+Git Bash directly:
+
+```powershell
+& 'C:\Program Files\Git\bin\bash.exe' scripts/pipeline.sh
+```
+
+Expected final result:
+
+- staging has received `v2`;
+- production briefly receives `v2`;
+- production health fails because failure was injected;
+- rollback restores production to `v1`;
+- the final state output shows production back on `v1`.
+
+## Useful commands
+
+Reset the local demo state:
+
+```sh
+./scripts/reset.sh
+```
+
+Show the current local state:
+
+```sh
+./scripts/show-state.sh
+```
+
+Inject the simulated production health failure:
+
+```sh
+./scripts/inject-failure.sh production
+```
+
+Run individual stages:
+
+```sh
+./scripts/build.sh v2
+./scripts/run-tests.sh v2
+./scripts/security-scan.sh v2
+./scripts/deploy.sh staging v2
+./scripts/health-check.sh staging
+./scripts/deploy.sh production v2
+./scripts/health-check.sh production
+./scripts/rollback.sh production
+```
+
+## Script roles
+
+| Script | Role |
+| --- | --- |
+| `scripts/reset.sh` | Restores the local demo to a clean baseline with production on `v1` |
+| `scripts/pipeline.sh` | Orchestrates the full CI/CD and rollback scenario |
+| `scripts/build.sh` | Validates the selected app version has required files and version metadata |
+| `scripts/run-tests.sh` | Runs simple service checks for the selected version |
+| `scripts/security-scan.sh` | Scans the selected version for simple hardcoded secret patterns |
+| `scripts/deploy.sh` | Copies a version into staging or production deployment folders |
+| `scripts/health-check.sh` | Checks deployed health and fails production when the failure marker exists |
+| `scripts/inject-failure.sh` | Creates the marker file that forces production health to fail |
+| `scripts/rollback.sh` | Restores production to the previous known-good version |
+| `scripts/show-state.sh` | Prints the current versions and failure-injection state |
+
+## Failure injection
+
+The production failure is deliberate. `scripts/inject-failure.sh production`
+creates:
+
+```text
+state/force_production_health_failure
+```
+
+When `scripts/health-check.sh production` sees that file, it exits with failure.
+This proves the pipeline can detect a bad production health check and trigger the
+predefined rollback.
+
+## Current limitations
+
+This phase is still a local simulation:
+
+- the service is represented by static files under `app/v1` and `app/v2`;
+- deployments are file copies into `deployments/staging` and
+  `deployments/production`;
+- health checks read local files instead of calling an HTTP API.
+
+Later phases can replace this with a real payment-service API, real tests,
+Docker containers for staging and production, and then GitLab CI or GitHub
+Actions.

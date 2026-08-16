@@ -1,0 +1,14 @@
+# State files (dynamic)
+state/*.txt
+state/force_*
+
+# Deployed versions (dynamic)
+deployments/*/config.json
+deployments/*/health.txt
+deployments/*/index.html
+
+# Logs
+*.log
+
+# Private files
+0_private/

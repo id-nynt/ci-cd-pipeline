@@ -1,0 +1,6 @@
+{
+  "version": "2.0",
+  "service": "payment-service",
+  "environment": "production",
+  "status": "new"
+}
