@@ -1,13 +1,8 @@
 # CI/CD Failure Recovery Demo
 
-This repository demonstrates a simple CI/CD pipeline for an online payment
-service. It uses modular Bash scripts and a GitHub Actions workflow to show how
-a new release can be validated, deployed, fail a production health check, and
-automatically roll back to the previous version.
+This repository demonstrates a simple CI/CD pipeline for an online payment service. It uses modular Bash scripts and a GitHub Actions workflow to show how a new release can be validated, deployed, fail a production health check, and automatically roll back to the previous version.
 
-The project is intentionally lightweight. There is no Docker, Kubernetes, or
-real payment API yet. The goal is to clearly demonstrate the CI/CD recovery
-flow.
+The project is intentionally lightweight. There is no Docker, Kubernetes, or real payment API yet. The goal is to clearly demonstrate the CI/CD recovery flow.
 
 ## Quick Start
 
@@ -64,8 +59,7 @@ Runtime state is tracked in:
 - `state/staging_version.txt`
 - `state/force_production_health_failure`
 
-The `state/force_production_health_failure` file is the deliberate failure
-marker. When it exists, the production health check fails.
+The `state/force_production_health_failure` file is the deliberate failure marker. When it exists, the production health check fails.
 
 ## Pipeline Flow
 
@@ -103,8 +97,7 @@ Scenario:
 
 ## Expected Output
 
-The exact log formatting may vary slightly, but a successful run should show
-this sequence:
+The exact log formatting may vary slightly, but a successful run should show this sequence:
 
 ```text
 [reset] PASS: production reset to v1
@@ -133,9 +126,7 @@ Staging deployed config version: "version": "2.0"
 Forced production health failure: disabled
 ```
 
-In GitHub Actions, the `Check production health` step is expected to fail
-internally. The workflow continues, confirms that the failure happened, rolls
-back production, and verifies recovery.
+In GitHub Actions, the `Check production health` step is expected to fail internally. The workflow continues, confirms that the failure happened, rolls back production, and verifies recovery.
 
 ## Scripts Explanation
 
@@ -170,8 +161,7 @@ Manual stage-by-stage run:
 ./scripts/show-state.sh
 ```
 
-`./scripts/health-check.sh production` should fail after failure injection. That
-failure is expected and is what triggers rollback.
+`./scripts/health-check.sh production` should fail after failure injection. That failure is expected and is what triggers rollback.
 
 ## Repository Structure
 
@@ -190,8 +180,7 @@ failure is expected and is what triggers rollback.
 `-- README
 ```
 
-`deployments/` and `state/` are runtime simulation folders. Their generated
-contents are ignored by Git.
+`deployments/` and `state/` are runtime simulation folders. Their generated contents are ignored by Git.
 
 ## Troubleshooting
 
@@ -207,8 +196,7 @@ If local state looks wrong:
 ./scripts/reset.sh
 ```
 
-If production health does not fail during the scenario, check that this file
-exists before the production health check:
+If production health does not fail during the scenario, check that this file exists before the production health check:
 
 ```text
 state/force_production_health_failure
@@ -224,6 +212,3 @@ The pipeline does not reason about:
 - whether retrying would help
 - whether rollback is appropriate
 - whether another recovery action exists
-
-The next research step is to investigate how BDI agents
-could make these decisions autonomously.
