@@ -1,8 +1,8 @@
-# CI/CD Failure Recovery Demo
+# Simple CI/CD Demo
 
 This repository demonstrates a simple CI/CD pipeline for an online payment service. It uses modular Bash scripts and a GitHub Actions workflow to show how a new release can be validated, deployed, fail a production health check, and automatically roll back to the previous version.
 
-The project is intentionally lightweight. There is no Docker, Kubernetes, or real payment API yet. The goal is to clearly demonstrate the CI/CD recovery flow.
+The project is intentionally lightweight. There is no real payment API yet. The goal is to clearly demonstrate the CI/CD recovery flow.
 
 ## Quick Start
 
