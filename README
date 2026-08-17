@@ -1,116 +1,229 @@
-# CI/CD Recovery Pipeline Demo
+# CI/CD Failure Recovery Demo
 
-This repository demonstrates a local CI/CD pipeline for an online payment
-service. It starts production on a stable `v1`, validates a new `v2`, deploys it
-through staging, intentionally fails the production health check, and then
-rolls production back to `v1`.
+This repository demonstrates a simple CI/CD pipeline for an online payment
+service. It uses modular Bash scripts and a GitHub Actions workflow to show how
+a new release can be validated, deployed, fail a production health check, and
+automatically roll back to the previous version.
 
-The current implementation is Phase 2 of the demo progression: a repeatable
-local shell-script pipeline with reset and inspection helpers.
+The project is intentionally lightweight. There is no Docker, Kubernetes, or
+real payment API yet. The goal is to clearly demonstrate the CI/CD recovery
+flow.
 
-## Scenario
+## Quick Start
 
-Traditional CI/CD flow:
-
-```text
-build -> test -> security -> staging deploy -> staging health
-      -> production deploy -> production health -> rollback on failure
-```
-
-In this repo:
-
-- `v1` is the previous known-good production version.
-- `v2` is the new version being delivered.
-- `v2` passes build, test, security, staging deploy, and staging health.
-- A production health failure is intentionally injected.
-- `rollback.sh production` restores production to `v1`.
-
-## Main command
-
-Run the full local scenario:
+Run the full local demo from the repository root:
 
 ```sh
 ./scripts/pipeline.sh
 ```
 
-Expected final result:
+On Windows PowerShell, use Git Bash directly if normal `bash` points to WSL:
 
-- staging has received `v2`;
-- production briefly receives `v2`;
-- production health fails because failure was injected;
-- rollback restores production to `v1`;
-- the final state output shows production back on `v1`.
-
-## Useful commands
-
-Reset the local demo state:
-
-```sh
-./scripts/reset.sh
+```powershell
+& 'C:\Program Files\Git\bin\bash.exe' scripts/pipeline.sh
 ```
 
-Show the current local state:
+To inspect the final state:
 
 ```sh
 ./scripts/show-state.sh
 ```
 
-Inject the simulated production health failure:
+The same pipeline is also available in GitHub Actions:
 
-```sh
-./scripts/inject-failure.sh production
+```text
+.github/workflows/ci-cd-pipeline.yml
 ```
 
-Run individual stages:
+It runs on pushes to `main` and pull requests targeting `main`.
+
+## Service Explanation
+
+The repository simulates an online payment service with two versions:
+
+| Version | Purpose                     | Location  |
+| ------- | --------------------------- | --------- |
+| `v1`    | Stable production version   | `app/v1/` |
+| `v2`    | New version being delivered | `app/v2/` |
+
+Each version contains:
+
+- `config.json`: service metadata, including version and service name.
+- `health.txt`: simple health status. The expected healthy value is `OK`.
+- `index.html`: placeholder application page.
+
+Deployments are simulated by copying files into:
+
+- `deployments/staging/`
+- `deployments/production/`
+
+Runtime state is tracked in:
+
+- `state/production_version.txt`
+- `state/previous_production_version.txt`
+- `state/staging_version.txt`
+- `state/force_production_health_failure`
+
+The `state/force_production_health_failure` file is the deliberate failure
+marker. When it exists, the production health check fails.
+
+## Pipeline Flow
+
+The full local pipeline is orchestrated by:
 
 ```sh
+./scripts/pipeline.sh
+```
+
+Flow:
+
+```text
+reset local state
+build v2
+test v2
+security scan v2
+deploy v2 to staging
+health-check staging
+inject production failure
+deploy v2 to production
+health-check production
+rollback production to v1
+show final state
+```
+
+Scenario:
+
+1. Production starts on `v1`.
+2. `v2` passes build, test, security, staging deployment, and staging health.
+3. A failure marker is created before production health check.
+4. `v2` is deployed to production.
+5. Production health check fails because the marker exists.
+6. `rollback.sh production` restores production to `v1`.
+7. The failure marker is removed during rollback.
+
+## Expected Output
+
+The exact log formatting may vary slightly, but a successful run should show
+this sequence:
+
+```text
+[reset] PASS: production reset to v1
+[build] PASS
+[tests] PASS
+[security] PASS
+[deploy] PASS: deployed v2 to staging
+[health-check] PASS: staging health
+[inject-failure] PASS: production health check will fail
+[deploy] PASS: deployed v2 to production
+[health-check] FAIL: forced failure for production
+PRODUCTION HEALTH FAILED
+TRIGGERING HARDCODED RECOVERY: Rolling back...
+[rollback] PASS: restored production to v1
+PIPELINE COMPLETED SUCCESSFULLY
+```
+
+Final state should be:
+
+```text
+Production version: v1
+Previous production version: v1
+Staging version: v2
+Production deployed config version: "version": "1.0"
+Staging deployed config version: "version": "2.0"
+Forced production health failure: disabled
+```
+
+In GitHub Actions, the `Check production health` step is expected to fail
+internally. The workflow continues, confirms that the failure happened, rolls
+back production, and verifies recovery.
+
+## Scripts Explanation
+
+| Script                                 | What it does                                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `scripts/pipeline.sh`                  | Runs the full demo from reset through rollback and final state display                                      |
+| `scripts/reset.sh`                     | Creates required runtime folders, clears old state, and restores production to `v1`                         |
+| `scripts/build.sh v2`                  | Checks that the selected app version exists and has a `config.json` with a version field                    |
+| `scripts/run-tests.sh v2`              | Checks that the selected version is the `payment-service` and has `health.txt` containing `OK`              |
+| `scripts/security-scan.sh v2`          | Searches the selected version for simple hardcoded password, API key, and AWS key patterns                  |
+| `scripts/deploy.sh staging v2`         | Copies the selected version into the staging deployment folder and records staging version                  |
+| `scripts/deploy.sh production v2`      | Copies the selected version into production and records the previous production version for rollback        |
+| `scripts/health-check.sh staging`      | Verifies that deployed staging health exists and contains `OK`                                              |
+| `scripts/health-check.sh production`   | Fails if the forced failure marker exists; otherwise verifies deployed production health                    |
+| `scripts/inject-failure.sh production` | Creates `state/force_production_health_failure` to simulate production health failure                       |
+| `scripts/rollback.sh production`       | Restores production to the previous recorded version and removes the failure marker                         |
+| `scripts/show-state.sh`                | Prints current production, previous production, staging, deployed config versions, and failure marker state |
+
+Manual stage-by-stage run:
+
+```sh
+./scripts/reset.sh
 ./scripts/build.sh v2
 ./scripts/run-tests.sh v2
 ./scripts/security-scan.sh v2
 ./scripts/deploy.sh staging v2
 ./scripts/health-check.sh staging
+./scripts/inject-failure.sh production
 ./scripts/deploy.sh production v2
 ./scripts/health-check.sh production
 ./scripts/rollback.sh production
+./scripts/show-state.sh
 ```
 
-## Script roles
+`./scripts/health-check.sh production` should fail after failure injection. That
+failure is expected and is what triggers rollback.
 
-| Script | Role |
-| --- | --- |
-| `scripts/reset.sh` | Restores the local demo to a clean baseline with production on `v1` |
-| `scripts/pipeline.sh` | Orchestrates the full CI/CD and rollback scenario |
-| `scripts/build.sh` | Validates the selected app version has required files and version metadata |
-| `scripts/run-tests.sh` | Runs simple service checks for the selected version |
-| `scripts/security-scan.sh` | Scans the selected version for simple hardcoded secret patterns |
-| `scripts/deploy.sh` | Copies a version into staging or production deployment folders |
-| `scripts/health-check.sh` | Checks deployed health and fails production when the failure marker exists |
-| `scripts/inject-failure.sh` | Creates the marker file that forces production health to fail |
-| `scripts/rollback.sh` | Restores production to the previous known-good version |
-| `scripts/show-state.sh` | Prints the current versions and failure-injection state |
+## Repository Structure
 
-## Failure injection
+```text
+.
+|-- .github/workflows/ci-cd-pipeline.yml
+|-- app/
+|   |-- v1/
+|   `-- v2/
+|-- deployments/
+|   |-- production/
+|   `-- staging/
+|-- scripts/
+|-- state/
+|-- .gitignore
+`-- README
+```
 
-The production failure is deliberate. `scripts/inject-failure.sh production`
-creates:
+`deployments/` and `state/` are runtime simulation folders. Their generated
+contents are ignored by Git.
+
+## Troubleshooting
+
+If scripts are not executable on Linux or GitHub Actions:
+
+```sh
+chmod +x scripts/*.sh
+```
+
+If local state looks wrong:
+
+```sh
+./scripts/reset.sh
+```
+
+If production health does not fail during the scenario, check that this file
+exists before the production health check:
 
 ```text
 state/force_production_health_failure
 ```
 
-When `scripts/health-check.sh production` sees that file, it exits with failure.
-This proves the pipeline can detect a bad production health check and trigger the
-predefined rollback.
+## Limitations
 
-## Current limitations
+The recovery behaviour is predefined.
 
-This phase is still a local simulation:
+The pipeline does not reason about:
 
-- the service is represented by static files under `app/v1` and `app/v2`;
-- deployments are file copies into `deployments/staging` and
-  `deployments/production`;
-- health checks read local files instead of calling an HTTP API.
+- why the deployment failed
+- whether retrying would help
+- whether rollback is appropriate
+- whether another recovery action exists
 
-Later phases can replace this with a real payment-service API, real tests,
-Docker containers for staging and production, and then GitLab CI or GitHub
-Actions.
+The next research step is to investigate how BDI agents
+could make these decisions autonomously.
